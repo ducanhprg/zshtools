@@ -36,10 +36,21 @@ Additionally, you need:
      ```zsh
      # Function to install or update Go to the latest version
      setup_go() {
+       # Ensure curl is installed
+       if ! command -v curl >/dev/null 2>&1; then
+         echo "Error: curl is required. Install it with 'sudo apt install curl'"
+         return 1
+       fi
+
        # Get the latest Go version from the official site
-       LATEST_GO=$(curl -s https://go.dev/VERSION?m=text | head -n 1)
+       LATEST_GO=$(curl -sSL "https://go.dev/VERSION?m=text" | head -n 1 | grep -E '^go[0-9]+\.[0-9]+\.[0-9]+$')
+       if [ -z "$LATEST_GO" ]; then
+         echo "Error: Failed to fetch latest Go version. Check your internet connection or try again later."
+         echo "Debug: Run 'curl -sSL \"https://go.dev/VERSION?m=text\"' to diagnose."
+         return 1
+       fi
+
        CURRENT_GO=""
-       
        # Check if Go is installed
        if command -v go >/dev/null 2>&1; then
          CURRENT_GO=$(go version | awk '{print $3}')
@@ -51,11 +62,18 @@ Additionally, you need:
        fi
 
        echo "Installing/Updating Go to $LATEST_GO..."
-       
+
        # Download and install Go
-       wget https://go.dev/dl/$LATEST_GO.linux-amd64.tar.gz -O /tmp/go.tar.gz
+       if ! wget "https://go.dev/dl/$LATEST_GO.linux-amd64.tar.gz" -O /tmp/go.tar.gz; then
+         echo "Error: Failed to download Go $LATEST_GO. Check your internet connection."
+         return 1
+       fi
        sudo rm -rf /usr/local/go
-       sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+       if ! sudo tar -C /usr/local -xzf /tmp/go.tar.gz; then
+         echo "Error: Failed to extract Go tarball."
+         rm /tmp/go.tar.gz
+         return 1
+       fi
        rm /tmp/go.tar.gz
 
        # Ensure Go binary is in PATH
@@ -63,10 +81,12 @@ Additionally, you need:
          echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.zshrc
        fi
 
+       # Update PATH for current session
+       export PATH=$PATH:/usr/local/go/bin
+
        # Verify installation
        if /usr/local/go/bin/go version >/dev/null 2>&1; then
          echo "Go $LATEST_GO installed successfully"
-         source ~/.zshrc
        else
          echo "Go installation failed"
          return 1
@@ -75,24 +95,39 @@ Additionally, you need:
 
      # Function to install or update Node.js to the latest LTS version using nvm
      setup_node() {
+       # Ensure curl is installed
+       if ! command -v curl >/dev/null 2>&1; then
+         echo "Error: curl is required. Install it with 'sudo apt install curl'"
+         return 1
+       fi
+
        # Install nvm if not already installed
        if [ ! -d "$HOME/.nvm" ]; then
          echo "Installing nvm..."
-         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-         
-         # Load nvm
-         export NVM_DIR="$HOME/.nvm"
-         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-       else
-         # Load nvm
-         export NVM_DIR="$HOME/.nvm"
-         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+         if ! curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash; then
+           echo "Error: Failed to install nvm. Check your internet connection."
+           return 1
+         fi
+       fi
+
+       # Load nvm
+       export NVM_DIR="$HOME/.nvm"
+       [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+       if [ $? -ne 0 ]; then
+         echo "Error: Failed to load nvm. Check ~/.nvm/nvm.sh existence and permissions."
+         return 1
        fi
 
        # Get the latest Node.js LTS version
-       LATEST_NODE=$(nvm ls-remote | grep "Latest LTS" | tail -n 1 | awk '{print $2}')
+       LATEST_NODE=$(nvm ls-remote --lts | grep -E 'v[0-9]+\.[0-9]+\.[0-9]+' | tail -n 1 | awk '{print $1}' | tr -d '[:space:]')
+       if [ -z "$LATEST_NODE" ]; then
+         echo "Error: Failed to fetch latest Node.js LTS version."
+         echo "Debug: Run 'nvm ls-remote --lts' to check available versions."
+         nvm ls-remote --lts
+         return 1
+       fi
+
        CURRENT_NODE=""
-       
        # Check if Node.js is installed
        if command -v node >/dev/null 2>&1; then
          CURRENT_NODE=$(node -v)
@@ -104,11 +139,14 @@ Additionally, you need:
        fi
 
        echo "Installing/Updating Node.js to $LATEST_NODE..."
-       
+
        # Install the latest Node.js LTS version
-       nvm install $LATEST_NODE
-       nvm use $LATEST_NODE
-       nvm alias default $LATEST_NODE
+       if ! nvm install "$LATEST_NODE"; then
+         echo "Error: Failed to install Node.js $LATEST_NODE."
+         return 1
+       fi
+       nvm use "$LATEST_NODE"
+       nvm alias default "$LATEST_NODE"
 
        # Verify installation
        if node -v >/dev/null 2>&1; then
@@ -160,8 +198,8 @@ Run the functions directly in your terminal:
   - If an installation fails, an error message is displayed.
 
 - **Manual Version Check:**
-  - For Go: Visit `https://go.dev/dl/` to see available versions.
-  - For Node.js: Run `nvm ls-remote` to list available Node.js versions.
+  - For Go: Visit `https://go.dev/dl/` or run `curl -sSL "https://go.dev/VERSION?m=text"` to see the latest version.
+  - For Node.js: Run `nvm ls-remote --lts` to list available Node.js LTS versions.
 
 ## Troubleshooting
 
@@ -169,6 +207,12 @@ Run the functions directly in your terminal:
 - **Network Issues:** Verify internet connectivity for downloading Go or nvm.
 - **nvm Not Found:** If `nvm` commands fail, ensure the `source ~/.zshrc` command was run after adding the functions.
 - **Architecture Mismatch:** If using a non-`amd64` system, update the Go download URL in `setup_go`.
+- **Version Fetch Errors:** If version fetching fails, manually check versions with `curl -sSL "https://go.dev/VERSION?m=text"` for Go or `nvm ls-remote --lts` for Node.js. If `nvm ls-remote --lts` is empty, try reinstalling nvm with:
+  ```bash
+  rm -rf ~/.nvm
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+  source ~/.zshrc
+  ```
 
 ## Contributing
 
