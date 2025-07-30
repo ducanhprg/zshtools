@@ -163,7 +163,20 @@ Additionally, you need:
         # Prerequisites for building Python from source
         echo "Installing Python build dependencies..."
         sudo apt update
-        sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev libbz2-dev
+        sudo apt install -y \
+          build-essential \
+          zlib1g-dev \
+          libncurses5-dev \
+          libgdbm-dev \
+          libnss3-dev \
+          libssl-dev \
+          libreadline-dev \
+          libffi-dev \
+          libsqlite3-dev \
+          libbz2-dev \
+          liblzma-dev \
+          tk-dev \
+          libexpat1-dev
       
         # Install pyenv if not already installed
         if [ ! -d "$HOME/.pyenv" ]; then
@@ -203,6 +216,7 @@ Additionally, you need:
           echo "Installing Python $LATEST_PYTHON..."
           if ! pyenv install "$LATEST_PYTHON"; then
             echo "Error: Failed to install Python $LATEST_PYTHON."
+            echo "You may need to install additional build dependencies. See pyenv documentation."
             return 1
           fi
         fi
@@ -212,7 +226,7 @@ Additionally, you need:
           echo "Error: Failed to set Python $LATEST_PYTHON as the global default."
           return 1
         fi
-      
+        
         echo "Python $LATEST_PYTHON installed and set as the global default successfully."
         echo "To install other versions, use 'pyenv install <version>'."
       }
