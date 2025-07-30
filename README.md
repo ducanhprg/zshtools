@@ -6,6 +6,7 @@ This repository provides two Zsh functions to manage Go and Node.js installation
 
 - **`setup_go`**: Installs or updates Go to the latest stable version.
 - **`setup_node`**: Installs or updates Node.js to the latest Long-Term Support (LTS) version using Node Version Manager (nvm).
+- **`setup_python`**: Installs or updates Python to the latest stable version using Python Version Manager (pyenv).
 
 ## Prerequisites
 
@@ -156,6 +157,65 @@ Additionally, you need:
          return 1
        fi
      }
+
+     # Function to install or update Python to the latest version using pyenv
+      setup_python() {
+        # Prerequisites for building Python from source
+        echo "Installing Python build dependencies..."
+        sudo apt update
+        sudo apt install -y build-essential zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libsqlite3-dev libbz2-dev
+      
+        # Install pyenv if not already installed
+        if [ ! -d "$HOME/.pyenv" ]; then
+          echo "Installing pyenv..."
+          if ! curl https://pyenv.run | bash; then
+            echo "Error: Failed to install pyenv. Check your internet connection."
+            return 1
+          fi
+          echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
+          echo 'export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
+          echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+        fi
+      
+        # Load pyenv for the current session
+        export PYENV_ROOT="$HOME/.pyenv"
+        export PATH="$PYENV_ROOT/bin:$PATH"
+        eval "$(pyenv init -)"
+      
+        # Check if pyenv is loaded
+        if ! command -v pyenv >/dev/null 2>&1; then
+          echo "Error: pyenv is not loaded. Try restarting your shell or running 'source ~/.zshrc'."
+          return 1
+        fi
+      
+        # Get the latest stable Python version
+        LATEST_PYTHON=$(pyenv install --list | grep -E '^\s+[0-9]+\.[0-9]+\.[0-9]+$' | tail -n 1 | tr -d '[:space:]')
+        if [ -z "$LATEST_PYTHON" ]; then
+          echo "Error: Failed to fetch latest Python version."
+          echo "Debug: Run 'pyenv install --list' to check available versions."
+          return 1
+        fi
+      
+        # Check if the latest version is already installed
+        if pyenv versions | grep -q "$LATEST_PYTHON"; then
+          echo "Python $LATEST_PYTHON is already installed."
+        else
+          echo "Installing Python $LATEST_PYTHON..."
+          if ! pyenv install "$LATEST_PYTHON"; then
+            echo "Error: Failed to install Python $LATEST_PYTHON."
+            return 1
+          fi
+        fi
+      
+        # Set the installed version as the global default
+        if ! pyenv global "$LATEST_PYTHON"; then
+          echo "Error: Failed to set Python $LATEST_PYTHON as the global default."
+          return 1
+        fi
+      
+        echo "Python $LATEST_PYTHON installed and set as the global default successfully."
+        echo "To install other versions, use 'pyenv install <version>'."
+      }
      ```
 
    - Save the file (`Ctrl+O`, `Enter`, then `Ctrl+X` in nano).
@@ -193,19 +253,26 @@ Run the functions directly in your terminal:
   - It installs the latest LTS version of Node.js for stability.
   - The default Node.js version is set to the latest LTS after installation.
 
+- **Python Installation:**
+   - The setup_python function uses pyenv to manage Python versions, which is highly recommended for keeping your system's Python installation clean.
+   - It installs the latest stable Python version available and sets it as the global default.
+   - Python is installed from source, which requires some build dependencies. These are automatically installed by the function.
+   - Once pyenv is installed, you can use its commands to manage versions, create virtual environments, and switch between them.
+
 - **Verification:**
-  - Both functions verify the installation by checking the installed version.
+  - All three functions verify the installation by checking the installed version.
   - If an installation fails, an error message is displayed.
 
 - **Manual Version Check:**
   - For Go: Visit `https://go.dev/dl/` or run `curl -sSL "https://go.dev/VERSION?m=text"` to see the latest version.
   - For Node.js: Run `nvm ls-remote --lts` to list available Node.js LTS versions.
+  - For Python: Run `pyenv install --list` to see all available Python versions.
 
 ## Troubleshooting
 
 - **Permission Issues:** Ensure you have `sudo` access for Go installation.
 - **Network Issues:** Verify internet connectivity for downloading Go or nvm.
-- **nvm Not Found:** If `nvm` commands fail, ensure the `source ~/.zshrc` command was run after adding the functions.
+- **Version Manager Not Found:** If `nvm` or `pyenv` commands fail, ensure the `source ~/.zshrc` command was run after adding the functions.
 - **Architecture Mismatch:** If using a non-`amd64` system, update the Go download URL in `setup_go`.
 - **Version Fetch Errors:** If version fetching fails, manually check versions with `curl -sSL "https://go.dev/VERSION?m=text"` for Go or `nvm ls-remote --lts` for Node.js. If `nvm ls-remote --lts` is empty, try reinstalling nvm with:
   ```bash
